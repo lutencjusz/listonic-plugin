@@ -1,0 +1,19 @@
+[project]
+name = "listonic-plugin"
+version = "0.1.0"
+description = "CLI do list zakupow Listonic + skille Claude Code"
+requires-python = ">=3.11"
+dependencies = ["requests>=2.31"]
+
+[project.scripts]
+listonic = "listonic.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "responses>=0.25"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/listonic"]
