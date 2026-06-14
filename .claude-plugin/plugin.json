@@ -1,0 +1,10 @@
+{
+  "name": "listonic-plugin",
+  "description": "Listy zakupów Listonic w Claude Code: odczyt/edycja list, własna historia zakupów i ranking popularnych produktów. Skille + backend CLI w Pythonie.",
+  "version": "0.1.0",
+  "author": { "name": "lutencjusz", "url": "https://github.com/lutencjusz" },
+  "homepage": "https://github.com/lutencjusz/listonic-plugin",
+  "repository": "https://github.com/lutencjusz/listonic-plugin",
+  "license": "MIT",
+  "keywords": ["listonic", "shopping-list", "zakupy", "cli"]
+}

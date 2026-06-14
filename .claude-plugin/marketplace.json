@@ -1,0 +1,12 @@
+{
+  "name": "listonic-plugin",
+  "owner": { "name": "lutencjusz", "url": "https://github.com/lutencjusz" },
+  "plugins": [
+    {
+      "name": "listonic-plugin",
+      "source": "./",
+      "description": "Listy zakupów Listonic w Claude Code: odczyt/edycja list, historia zakupów i ranking popularnych produktów.",
+      "version": "0.1.0"
+    }
+  ]
+}

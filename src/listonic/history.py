@@ -4,11 +4,23 @@ import tempfile
 from datetime import date
 from pathlib import Path
 
-from .config import load_config, LOGGED_ITEMS_FILE, DEFAULT_VAULT
-from .client import normalize_item
+from .config import load_config, LOGGED_ITEMS_FILE
+from .client import normalize_item, ListonicError
 
 MIKRUS_CONFIG = Path.home() / ".mikrus" / "config.json"
 DEFAULT_MIKRUS_REMOTE = "/root/listonic-data"
+
+
+def _resolve_vault(vault=None) -> str:
+    """Ścieżka do vaultu Obsidian, do którego zrzucana jest historia zakupów.
+    Brak twardego domyślnego — ustaw `vault_path` w ~/.listonic/config.json."""
+    vault = vault or load_config().get("vault_path")
+    if not vault:
+        raise ListonicError(
+            "Brak vault_path w ~/.listonic/config.json — ustaw ścieżkę do vaultu "
+            'Obsidian, np. {"vault_path": "/sciezka/do/Vault"}.'
+        )
+    return vault
 
 
 def _zakupy_dir(vault: str) -> Path:
@@ -78,7 +90,7 @@ def _extract_intro(text: str) -> str:
 
 
 def write_popular_note(vault=None, top: int = 20) -> Path:
-    vault = vault or load_config().get("vault_path", DEFAULT_VAULT)
+    vault = _resolve_vault(vault)
     rows = popular(top=top)
     d = _zakupy_dir(vault)
     d.mkdir(parents=True, exist_ok=True)
@@ -113,7 +125,7 @@ DEFAULT_PRUNE_LIST = "Najbliższe zakupy"
 
 
 def sync_history(client, vault=None, today=None, prune=False, prune_list=None) -> dict:
-    vault = vault or load_config().get("vault_path", DEFAULT_VAULT)
+    vault = _resolve_vault(vault)
     today = today or date.today().isoformat()
     lists = client.get_lists()
     logged = load_logged()
@@ -194,7 +206,7 @@ def pull_from_mikrus(vault=None, remote_dir=None) -> dict:
     conn = _mikrus_conn()
     if conn is None:
         return {"available": False, "files": [], "items": 0}
-    vault = vault or load_config().get("vault_path", DEFAULT_VAULT)
+    vault = _resolve_vault(vault)
     remote_dir = remote_dir or load_config().get("mikrus_remote_dir", DEFAULT_MIKRUS_REMOTE)
     target = f"{conn['user']}@{conn['host']}"
     port = str(conn["sshPort"])

@@ -2,8 +2,15 @@
 name = "listonic-plugin"
 version = "0.1.0"
 description = "CLI do list zakupow Listonic + skille Claude Code"
+readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "lutencjusz" }]
 dependencies = ["requests>=2.31"]
+
+[project.urls]
+Homepage = "https://github.com/lutencjusz/listonic-plugin"
+Repository = "https://github.com/lutencjusz/listonic-plugin"
 
 [project.scripts]
 listonic = "listonic.cli:main"

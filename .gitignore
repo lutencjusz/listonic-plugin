@@ -5,3 +5,8 @@ __pycache__/
 dist/
 build/
 .pytest_cache/
+
+# Poswiadczenia/stan uzytkownika trzymane sa w ~/.listonic/ (poza repo) —
+# nigdy nie commituj plikow z sekretami.
+.env
+*.log

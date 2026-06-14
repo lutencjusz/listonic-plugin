@@ -4,7 +4,6 @@ from pathlib import Path
 CONFIG_DIR = Path.home() / ".listonic"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 LOGGED_ITEMS_FILE = CONFIG_DIR / "logged_items.json"
-DEFAULT_VAULT = r"C:\Data\Obsidian\Obsidian"
 
 
 def load_config() -> dict:
