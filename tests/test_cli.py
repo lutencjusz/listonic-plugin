@@ -20,3 +20,13 @@ def test_json_flag_after_subcommand_lists():
 def test_lists_checked_and_unchecked_mutually_exclusive():
     with pytest.raises(SystemExit):
         build_parser().parse_args(["lists", "--checked", "--unchecked"])
+
+
+def test_sync_history_prune_flag():
+    args = build_parser().parse_args(["sync-history", "--prune"])
+    assert args.prune is True and args.func.__name__ == "cmd_sync_history"
+
+
+def test_sync_history_default_no_prune():
+    args = build_parser().parse_args(["sync-history"])
+    assert args.prune is False

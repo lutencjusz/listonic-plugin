@@ -67,9 +67,14 @@ def cmd_remove(args):
 
 
 def cmd_sync_history(args):
-    new = history.sync_history(ListonicClient())
+    res = history.sync_history(ListonicClient(), prune=args.prune)
     history.write_popular_note()
-    print(f"Zalogowano {len(new)} nowych odhaczonych: {', '.join(new) if new else '—'}")
+    logged = res["logged"]
+    msg = f"Zalogowano {len(logged)} nowych odhaczonych: {', '.join(logged) if logged else '—'}"
+    if args.prune:
+        pruned = res["pruned"]
+        msg += f"\nUsunięto z „{history.DEFAULT_PRUNE_LIST}\": {len(pruned)}"
+    print(msg)
 
 
 def cmd_popular(args):
@@ -105,7 +110,11 @@ def build_parser():
     sp.set_defaults(func=cmd_check, uncheck=True)
 
     sp = sub.add_parser("remove"); sp.add_argument("list"); sp.add_argument("item"); sp.set_defaults(func=cmd_remove)
-    sp = sub.add_parser("sync-history"); sp.set_defaults(func=cmd_sync_history)
+
+    sp = sub.add_parser("sync-history")
+    sp.add_argument("--prune", action="store_true",
+                    help="po zapisaniu do historii usuń odhaczone z listy „Najbliższe zakupy")
+    sp.set_defaults(func=cmd_sync_history)
 
     sp = sub.add_parser("popular")
     sp.add_argument("--top", type=int, default=20)

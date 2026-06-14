@@ -3,8 +3,11 @@ from listonic import history, config
 class FakeClient:
     def __init__(self, lists):
         self._lists = lists
+        self.removed = []
     def get_lists(self, include_items=True):
         return self._lists
+    def remove_item(self, list_id, item_id):
+        self.removed.append((list_id, item_id))
 
 def _patch_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "LOGGED_ITEMS_FILE", tmp_path / "logged.json")
@@ -16,8 +19,8 @@ def test_sync_logs_only_checked(tmp_path, monkeypatch):
         {"Id": "1", "Name": "Mleko", "Checked": 1},
         {"Id": "2", "Name": "Chleb", "Checked": 0},
     ]}])
-    new = history.sync_history(client, vault=str(tmp_path), today="2026-06-14")
-    assert new == ["Mleko"]
+    res = history.sync_history(client, vault=str(tmp_path), today="2026-06-14")
+    assert res["logged"] == ["Mleko"]
     daily = (tmp_path / "Google Keep" / "Zakupy" / "historia" / "2026-06-14.md").read_text(encoding="utf-8")
     assert "- Mleko" in daily
 
@@ -26,7 +29,45 @@ def test_sync_dedup_same_item(tmp_path, monkeypatch):
     client = FakeClient([{"Name": "L", "Items": [{"Id": "1", "Name": "Mleko", "Checked": 1}]}])
     history.sync_history(client, vault=str(tmp_path), today="2026-06-14")
     second = history.sync_history(client, vault=str(tmp_path), today="2026-06-14")
-    assert second == []
+    assert second["logged"] == []
+
+def test_prune_deletes_only_target_list(tmp_path, monkeypatch):
+    _patch_paths(tmp_path, monkeypatch)
+    client = FakeClient([
+        {"Id": "10", "Name": "Najbliższe zakupy", "Items": [
+            {"Id": "1", "Name": "Mleko", "Checked": 1},
+            {"Id": "2", "Name": "Chleb", "Checked": 0},
+        ]},
+        {"Id": "20", "Name": "Prezenty", "Items": [
+            {"Id": "3", "Name": "Książka", "Checked": 1},
+        ]},
+    ])
+    res = history.sync_history(client, vault=str(tmp_path), today="2026-06-14",
+                              prune=True, prune_list="Najbliższe zakupy")
+    assert client.removed == [("10", "1")]      # tylko odhaczona z listy docelowej
+    assert res["pruned"] == ["Mleko"]
+    assert set(res["logged"]) == {"Mleko", "Książka"}
+
+def test_no_prune_does_not_delete(tmp_path, monkeypatch):
+    _patch_paths(tmp_path, monkeypatch)
+    client = FakeClient([{"Id": "10", "Name": "Najbliższe zakupy", "Items": [
+        {"Id": "1", "Name": "Mleko", "Checked": 1}]}])
+    res = history.sync_history(client, vault=str(tmp_path), today="2026-06-14")
+    assert client.removed == []
+    assert res["pruned"] == []
+
+def test_prune_retries_already_logged(tmp_path, monkeypatch):
+    _patch_paths(tmp_path, monkeypatch)
+    (tmp_path / "logged.json").write_text(
+        '{"1": {"name": "Mleko", "date": "2026-06-10", "list": "Najbliższe zakupy"}}',
+        encoding="utf-8")
+    client = FakeClient([{"Id": "10", "Name": "Najbliższe zakupy", "Items": [
+        {"Id": "1", "Name": "Mleko", "Checked": 1}]}])
+    res = history.sync_history(client, vault=str(tmp_path), today="2026-06-14",
+                              prune=True, prune_list="Najbliższe zakupy")
+    assert res["logged"] == []                  # już zalogowane, bez ponownego logu
+    assert client.removed == [("10", "1")]      # ale i tak usunięte (retry)
+    assert res["pruned"] == ["Mleko"]
 
 def test_popular_counts_and_sorts(tmp_path, monkeypatch):
     _patch_paths(tmp_path, monkeypatch)

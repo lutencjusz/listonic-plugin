@@ -77,12 +77,16 @@ def stats() -> dict:
     }
 
 
-def sync_history(client, vault=None, today=None) -> list[str]:
+DEFAULT_PRUNE_LIST = "Najbliższe zakupy"
+
+
+def sync_history(client, vault=None, today=None, prune=False, prune_list=None) -> dict:
     vault = vault or load_config().get("vault_path", DEFAULT_VAULT)
     today = today or date.today().isoformat()
+    lists = client.get_lists()
     logged = load_logged()
     new_names = []
-    for lst in client.get_lists():
+    for lst in lists:
         list_name = lst.get("Name", "")
         items = lst.get("Items") or lst.get("items") or []
         for raw in items:
@@ -92,7 +96,25 @@ def sync_history(client, vault=None, today=None) -> list[str]:
                     "name": item["name"], "date": today, "list": list_name,
                 }
                 new_names.append(item["name"])
+    # Historię zapisujemy PRZED usuwaniem — żaden zakup nie ginie, jeśli prune padnie.
     if new_names:
         _write_daily(vault, today, new_names)
         save_logged(logged)
-    return new_names
+
+    pruned = []
+    if prune:
+        if prune_list is None:
+            prune_list = load_config().get("prune_list", DEFAULT_PRUNE_LIST)
+        target = prune_list.strip().lower()
+        for lst in lists:
+            if lst.get("Name", "").strip().lower() != target:
+                continue
+            list_id = str(lst.get("Id", lst.get("IdAsNumber", "")))
+            for raw in (lst.get("Items") or lst.get("items") or []):
+                item = normalize_item(raw)
+                # Usuwamy tylko to, co jest już bezpiecznie w historii.
+                if item["checked"] and item["id"] and item["id"] in logged:
+                    client.remove_item(list_id, item["id"])
+                    pruned.append(item["name"])
+
+    return {"logged": new_names, "pruned": pruned}
