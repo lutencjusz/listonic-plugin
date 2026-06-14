@@ -67,6 +67,22 @@ def cmd_remove(args):
 
 
 def cmd_sync_history(args):
+    # Najpierw zgarnij to, co Mikrus wygenerował (sync biegnie tam, always-on).
+    try:
+        pull = history.pull_from_mikrus()
+    except Exception as e:  # pull nie może wywalić lokalnego synca
+        pull = {"available": True, "files": [], "items": 0}
+        print(f"Pull z Mikrusa pominięty (błąd: {e})", file=sys.stderr)
+    if pull.get("files"):
+        extra = f" (+{pull['items']} nowych pozycji)" if pull.get("items") else ""
+        print(f"Z Mikrusa pobrano {len(pull['files'])} plik(ów) historii: "
+              f"{', '.join(pull['files'])}{extra}")
+    elif pull.get("available"):
+        print("Mikrus: brak nowych plików historii.")
+
+    if getattr(args, "pull_only", False):
+        return
+
     res = history.sync_history(ListonicClient(), prune=args.prune)
     history.write_popular_note()
     logged = res["logged"]
@@ -114,6 +130,8 @@ def build_parser():
     sp = sub.add_parser("sync-history")
     sp.add_argument("--prune", action="store_true",
                     help="po zapisaniu do historii usuń odhaczone z listy „Najbliższe zakupy")
+    sp.add_argument("--pull-only", action="store_true", dest="pull_only",
+                    help="tylko pobierz historię z Mikrusa do vaultu (bez ruchu do API Listonic)")
     sp.set_defaults(func=cmd_sync_history)
 
     sp = sub.add_parser("popular")

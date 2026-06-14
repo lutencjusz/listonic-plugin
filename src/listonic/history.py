@@ -1,12 +1,22 @@
 import json
+import subprocess
+import tempfile
 from datetime import date
 from pathlib import Path
 
 from .config import load_config, LOGGED_ITEMS_FILE, DEFAULT_VAULT
 from .client import normalize_item
 
+MIKRUS_CONFIG = Path.home() / ".mikrus" / "config.json"
+DEFAULT_MIKRUS_REMOTE = "/root/listonic-data"
+
 
 def _zakupy_dir(vault: str) -> Path:
+    # Na Mikrusie nie ma vaultu — pozwalamy nadpisać katalog Zakupy płaską
+    # ścieżką (config.zakupy_dir), żeby uniknąć spacji w ścieżkach przy scp.
+    override = load_config().get("zakupy_dir")
+    if override:
+        return Path(override)
     return Path(vault) / "Google Keep" / "Zakupy"
 
 
@@ -48,17 +58,39 @@ def popular(top: int = 20) -> list[tuple[str, int]]:
     return sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:top]
 
 
+_POPULAR_HEADER = "# Popularne produkty"
+
+
+def _extract_intro(text: str) -> str:
+    """Zachowaj ręczny akapit intro między nagłówkiem a pierwszą pozycją listy
+    (np. wikilink do [[Plugin Listonic]]), żeby regeneracja go nie kasowała."""
+    lines = text.splitlines()
+    try:
+        start = lines.index(_POPULAR_HEADER) + 1
+    except ValueError:
+        return ""
+    intro: list[str] = []
+    for ln in lines[start:]:
+        if ln.startswith("- "):
+            break
+        intro.append(ln)
+    return "\n".join(intro).strip()
+
+
 def write_popular_note(vault=None, top: int = 20) -> Path:
     vault = vault or load_config().get("vault_path", DEFAULT_VAULT)
     rows = popular(top=top)
     d = _zakupy_dir(vault)
     d.mkdir(parents=True, exist_ok=True)
     f = d / "Popularne produkty.md"
+    intro = _extract_intro(f.read_text(encoding="utf-8")) if f.exists() else ""
     lines = [
         "---", "description: Najczęściej kupowane produkty (z historii Listonic)",
         "tags:", "  - listonic", "  - zakupy", "---", "",
-        "# Popularne produkty", "",
+        _POPULAR_HEADER, "",
     ]
+    if intro:
+        lines += [intro, ""]
     for name, count in rows:
         lines.append(f"- {name.capitalize()} — {count}×")
     f.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -118,3 +150,102 @@ def sync_history(client, vault=None, today=None, prune=False, prune_list=None) -
                     pruned.append(item["name"])
 
     return {"logged": new_names, "pruned": pruned}
+
+
+# --- Pull z Mikrusa -------------------------------------------------------
+# Sync historii biegnie na Mikrusie (always-on). Tu ściągamy gotowe pliki
+# dzienne do vaultu na Windows. Połączenie bierzemy z ~/.mikrus/config.json.
+
+
+def merge_daily_content(existing, incoming: str) -> str:
+    """Scal dwie wersje pliku dziennego: zachowaj nagłówek istniejącego,
+    dołącz brakujące pozycje (linie ``- ...``). Bez duplikatów."""
+    def bullets(text: str) -> list[str]:
+        return [ln for ln in text.splitlines() if ln.startswith("- ")]
+
+    if not existing:
+        return incoming if incoming.endswith("\n") else incoming + "\n"
+    have = set(bullets(existing))
+    add = [ln for ln in bullets(incoming) if ln not in have]
+    base = existing if existing.endswith("\n") else existing + "\n"
+    if not add:
+        return base
+    return base + "".join(ln + "\n" for ln in add)
+
+
+def _mikrus_conn():
+    if not MIKRUS_CONFIG.exists():
+        return None
+    try:
+        cfg = json.loads(MIKRUS_CONFIG.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    if all(cfg.get(k) for k in ("host", "sshPort", "user", "identityFile")):
+        return cfg
+    return None
+
+
+def pull_from_mikrus(vault=None, remote_dir=None) -> dict:
+    """Ściągnij pliki historii wygenerowane na Mikrusie do vaultu.
+
+    Zwraca {"available": bool, "files": [...], "items": int}. Gdy brak
+    konfiguracji Mikrusa (np. uruchomione NA Mikrusie) — cicho pomija.
+    """
+    conn = _mikrus_conn()
+    if conn is None:
+        return {"available": False, "files": [], "items": 0}
+    vault = vault or load_config().get("vault_path", DEFAULT_VAULT)
+    remote_dir = remote_dir or load_config().get("mikrus_remote_dir", DEFAULT_MIKRUS_REMOTE)
+    target = f"{conn['user']}@{conn['host']}"
+    port = str(conn["sshPort"])
+    key = conn["identityFile"]
+    ssh_base = ["ssh", "-p", port, "-i", key, "-o", "BatchMode=yes", target]
+    scp_base = ["scp", "-P", port, "-i", key, "-o", "BatchMode=yes"]
+
+    r = subprocess.run(
+        ssh_base + [f"ls -1 {remote_dir}/historia/*.md 2>/dev/null"],
+        capture_output=True, text=True, timeout=60,
+    )
+    remote_files = [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+    if not remote_files:
+        return {"available": True, "files": [], "items": 0}
+
+    pulled: list[str] = []
+    new_items = 0
+    with tempfile.TemporaryDirectory() as tmp:
+        subprocess.run(
+            scp_base + ["-r", f"{target}:{remote_dir}/historia", tmp],
+            capture_output=True, text=True, timeout=120, check=True,
+        )
+        local_hist = _zakupy_dir(vault) / "historia"
+        local_hist.mkdir(parents=True, exist_ok=True)
+        for f in sorted(Path(tmp, "historia").glob("*.md")):
+            incoming = f.read_text(encoding="utf-8")
+            dest = local_hist / f.name
+            existing = dest.read_text(encoding="utf-8") if dest.exists() else None
+            dest.write_text(merge_daily_content(existing, incoming), encoding="utf-8")
+            pulled.append(f.name)
+
+        li = Path(tmp, "logged_items.json")
+        rc = subprocess.run(
+            scp_base + [f"{target}:/root/.listonic/logged_items.json", str(li)],
+            capture_output=True, text=True, timeout=60,
+        )
+        if rc.returncode == 0 and li.exists():
+            try:
+                remote_logged = json.loads(li.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                remote_logged = {}
+            local_logged = load_logged()
+            before = len(local_logged)
+            for k, v in remote_logged.items():
+                local_logged.setdefault(k, v)
+            new_items = len(local_logged) - before
+            save_logged(local_logged)
+
+    write_popular_note(vault)
+    subprocess.run(
+        ssh_base + [f"rm -f {remote_dir}/historia/*.md"],
+        capture_output=True, text=True, timeout=60,
+    )
+    return {"available": True, "files": pulled, "items": new_items}

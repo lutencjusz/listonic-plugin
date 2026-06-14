@@ -85,6 +85,37 @@ def test_write_popular_note(tmp_path, monkeypatch):
     note = (tmp_path / "Google Keep" / "Zakupy" / "Popularne produkty.md").read_text(encoding="utf-8")
     assert "Mleko" in note
 
+def test_merge_daily_new_file():
+    incoming = "# Zakupy\n\n- Mleko\n- Chleb\n"
+    assert history.merge_daily_content(None, incoming) == incoming
+
+def test_merge_daily_appends_missing_bullets():
+    existing = "---\ndesc\n---\n\n# Zakupy\n\n- Mleko\n"
+    incoming = "# Zakupy\n\n- Mleko\n- Chleb\n"
+    merged = history.merge_daily_content(existing, incoming)
+    assert merged.count("- Mleko") == 1          # bez duplikatu
+    assert "- Chleb" in merged
+    assert merged.startswith("---")              # nagłówek istniejącego zachowany
+
+def test_merge_daily_no_new_is_noop():
+    existing = "# Zakupy\n\n- Mleko\n- Chleb\n"
+    incoming = "# Zakupy\n\n- Mleko\n"
+    assert history.merge_daily_content(existing, incoming) == existing
+
+def test_write_popular_preserves_intro(tmp_path, monkeypatch):
+    _patch_paths(tmp_path, monkeypatch)
+    (tmp_path / "logged.json").write_text('{"1": {"name": "Mleko"}}', encoding="utf-8")
+    d = tmp_path / "Google Keep" / "Zakupy"
+    d.mkdir(parents=True)
+    (d / "Popularne produkty.md").write_text(
+        "---\ntags:\n---\n\n# Popularne produkty\n\n"
+        "Ranking z [[Plugin Listonic]].\n\n- Stare — 9×\n", encoding="utf-8")
+    history.write_popular_note(vault=str(tmp_path))
+    note = (d / "Popularne produkty.md").read_text(encoding="utf-8")
+    assert "[[Plugin Listonic]]" in note          # intro zachowane
+    assert "- Mleko — 1×" in note                 # lista przeliczona
+    assert "- Stare — 9×" not in note             # stara lista zastąpiona
+
 def test_stats_summary(tmp_path, monkeypatch):
     _patch_paths(tmp_path, monkeypatch)
     (tmp_path / "logged.json").write_text(
