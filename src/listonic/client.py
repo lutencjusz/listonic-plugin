@@ -15,7 +15,7 @@ class ListonicError(Exception):
 
 def normalize_item(raw: dict) -> dict:
     checked = raw.get("Checked", raw.get("isChecked", 0))
-    is_checked = bool(checked) if isinstance(checked, int) else bool(checked)
+    is_checked = bool(checked)
     return {
         "id": str(raw.get("Id", raw.get("IdAsNumber", ""))),
         "name": raw.get("Name", ""),

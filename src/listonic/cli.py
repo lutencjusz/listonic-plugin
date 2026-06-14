@@ -82,14 +82,15 @@ def cmd_stats(args):
 
 def build_parser():
     p = argparse.ArgumentParser(prog="listonic")
-    p.add_argument("--json", action="store_true", help="wyjście JSON")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sp = sub.add_parser("login"); sp.add_argument("--email"); sp.set_defaults(func=cmd_login)
 
     sp = sub.add_parser("lists")
-    sp.add_argument("--checked", action="store_true")
-    sp.add_argument("--unchecked", action="store_true")
+    g = sp.add_mutually_exclusive_group()
+    g.add_argument("--checked", action="store_true")
+    g.add_argument("--unchecked", action="store_true")
+    sp.add_argument("--json", action="store_true", help="wyjście JSON")
     sp.set_defaults(func=cmd_lists)
 
     sp = sub.add_parser("add"); sp.add_argument("list"); sp.add_argument("item"); sp.set_defaults(func=cmd_add)
@@ -105,8 +106,15 @@ def build_parser():
 
     sp = sub.add_parser("remove"); sp.add_argument("list"); sp.add_argument("item"); sp.set_defaults(func=cmd_remove)
     sp = sub.add_parser("sync-history"); sp.set_defaults(func=cmd_sync_history)
-    sp = sub.add_parser("popular"); sp.add_argument("--top", type=int, default=20); sp.set_defaults(func=cmd_popular)
-    sp = sub.add_parser("stats"); sp.set_defaults(func=cmd_stats)
+
+    sp = sub.add_parser("popular")
+    sp.add_argument("--top", type=int, default=20)
+    sp.add_argument("--json", action="store_true", help="wyjście JSON")
+    sp.set_defaults(func=cmd_popular)
+
+    sp = sub.add_parser("stats")
+    sp.add_argument("--json", action="store_true", help="wyjście JSON")
+    sp.set_defaults(func=cmd_stats)
     return p
 
 
