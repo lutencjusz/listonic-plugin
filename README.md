@@ -1,86 +1,91 @@
+> 🇵🇱 Wersja polska: [README_PL.md](README_PL.md)
+
 # listonic-plugin
 
-Plugin Claude Code do obsługi list zakupów [Listonic](https://listonic.com/) — prosto z
-rozmowy z Claude. Daje skille do odczytu i edycji list, własną historię odhaczonych
-zakupów zrzucaną do vaultu Obsidian oraz ranking najczęściej kupowanych produktów.
+A Claude Code plugin for managing [Listonic](https://listonic.com/) shopping lists —
+straight from a conversation with Claude. It provides skills to read and edit lists,
+builds your own history of checked-off purchases dumped into an Obsidian vault, and ranks
+your most frequently bought products.
 
-Pod spodem działa backend CLI w Pythonie (`listonic`), który rozmawia z API Listonic.
+Under the hood it runs a Python CLI backend (`listonic`) that talks to the Listonic API.
 
-## Co potrafi
+## What it does
 
-- **listonic-lists** — pokaż listy i pozycje (wszystko / do kupienia / odhaczone).
-- **listonic-edit** — dodaj pozycję, odhacz, cofnij odhaczenie, usuń (z potwierdzeniem).
-- **listonic-history** — zrzuć odhaczone do historii w vaultcie, pokaż statystyki i ranking.
-- **listonic-setup** — instalacja CLI, logowanie, weryfikacja.
+- **listonic-lists** — show lists and items (all / to-buy / checked off).
+- **listonic-edit** — add an item, check off, uncheck, remove (with confirmation).
+- **listonic-history** — dump checked items into vault history, show stats and a ranking.
+- **listonic-setup** — install the CLI, log in, verify.
 
-## Instalacja (dwa kroki)
+## Installation (two steps)
 
-Plugin to skille **oraz** backend CLI — zainstaluj oba.
+The plugin is skills **and** a CLI backend — install both.
 
 ```bash
-# 1) Skille — marketplace Claude Code
+# 1) Skills — Claude Code marketplace
 /plugin marketplace add lutencjusz/listonic-plugin
 /plugin install listonic-plugin@listonic-plugin
 
-# 2) Backend CLI (binarka `listonic`)
+# 2) CLI backend (the `listonic` binary)
 uv tool install git+https://github.com/lutencjusz/listonic-plugin.git
 ```
 
-Pominięcie kroku 2 to najczęstszy powód „zainstalowałem, a nie działa" — skille wołają CLI.
+Skipping step 2 is the most common cause of "I installed it but it doesn't work" — the
+skills call the CLI.
 
-## Logowanie
+## Logging in
 
 ```bash
-listonic login        # zapyta o email i hasło interaktywnie
+listonic login        # prompts for email and password interactively
 ```
 
-Tokeny lądują w `~/.listonic/config.json` — **poza repozytorium i vaultem**. Hasła nie
-podawaj w argumentach (zostają w historii powłoki) — tylko interaktywnie.
+Tokens are stored in `~/.listonic/config.json` — **outside the repository and the vault**.
+Don't pass passwords as arguments (they stay in shell history) — interactively only.
 
-**Konto „przez Google":** CLI używa wyłącznie logowania `email + hasło Listonic` (nie
-OAuth Google). Jeśli zakładałeś konto przez Google, ustaw najpierw hasło Listonic w
-aplikacji/web (ustawienia konta → ustaw/zmień hasło lub „nie pamiętam hasła" na ten sam
-email), a potem zaloguj się emailem Google + tym hasłem Listonic.
+**"Sign in with Google" accounts:** the CLI uses `email + Listonic password` login only
+(not Google OAuth). If you created your account through Google, first set a Listonic
+password in the app/web (account settings → set/change password, or "forgot password" for
+the same email), then log in with your Google email + that Listonic password.
 
-## Historia zakupów (opcjonalne)
+## Purchase history (optional)
 
-Skill `listonic-history` zapisuje odhaczone pozycje do vaultu Obsidian i generuje ranking
-popularnych produktów. Wskaż vault raz w `~/.listonic/config.json`:
+The `listonic-history` skill writes checked-off items into an Obsidian vault and generates
+a ranking of popular products. Point it at your vault once in `~/.listonic/config.json`:
 
 ```json
-{ "vault_path": "/sciezka/do/Vault" }
+{ "vault_path": "/path/to/Vault" }
 ```
 
-Bez `vault_path` komendy `sync-history`/`popular` zgłoszą brak ścieżki; zwykłe
-`lists`/`add`/`check` działają bez niego. Domyślnie historia trafia do
-`<vault>/Google Keep/Zakupy/` (katalog konfigurowalny przez `zakupy_dir`).
+Without `vault_path`, the `sync-history`/`popular` commands report a missing path; plain
+`lists`/`add`/`check` work without it. By default history goes to
+`<vault>/Google Keep/Zakupy/` (directory configurable via `zakupy_dir`).
 
-### Sync na serwerze (opcjonalne)
+### Server-side sync (optional)
 
-Jeśli masz serwer always-on, sync historii może biec tam (cron), a maszyna lokalna tylko
-ściąga gotowe pliki: `listonic sync-history --pull-only`. Połączenie czytane jest z
-`~/.mikrus/config.json`; gdy go nie ma, krok pull jest cicho pomijany.
+If you have an always-on server, history sync can run there (cron) while the local machine
+only pulls the ready files: `listonic sync-history --pull-only`. The connection is read
+from `~/.mikrus/config.json`; when it's missing, the pull step is silently skipped.
 
-## Komendy CLI
+## CLI commands
 
 ```bash
 listonic lists [--checked|--unchecked] [--json]
-listonic add    "<lista>" "<pozycja>"
-listonic check  "<lista>" "<pozycja>" [--uncheck]
-listonic remove "<lista>" "<pozycja>"
+listonic add    "<list>" "<item>"
+listonic check  "<list>" "<item>" [--uncheck]
+listonic remove "<list>" "<item>"
 listonic sync-history [--prune] [--pull-only]
 listonic popular [--top N] [--json]
 listonic stats [--json]
 ```
 
-## Bezpieczeństwo
+## Security
 
-- Poświadczenia i tokeny trzymane są wyłącznie w `~/.listonic/config.json`, **nigdy w repo**.
-- Plugin nie zawiera Twoich kluczy. `CLIENT_ID`/`CLIENT_SECRET` w kodzie to stałe klienta
-  OAuth aplikacji Listonic (wymagane, by API odpowiedziało) — nie są poświadczeniem konta.
-- Operacje zapisu (`add`/`check`/`remove`, `--prune`) modyfikują realne listy — skill
-  `listonic-edit` prosi o potwierdzenie przed zapisem.
+- Credentials and tokens are kept only in `~/.listonic/config.json`, **never in the repo**.
+- The plugin contains none of your keys. `CLIENT_ID`/`CLIENT_SECRET` in the code are the
+  Listonic app's OAuth client constants (required for the API to respond) — they are not
+  account credentials.
+- Write operations (`add`/`check`/`remove`, `--prune`) modify real lists — the
+  `listonic-edit` skill asks for confirmation before writing.
 
-## Licencja
+## License
 
-MIT — patrz [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
