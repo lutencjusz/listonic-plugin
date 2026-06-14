@@ -127,3 +127,26 @@ class ListonicClient:
             if lst.get("Name", "").strip().lower() == target:
                 return lst
         raise ListonicError(f"Nie znaleziono listy: {name}")
+
+    def add_item(self, list_id, name, amount=None, unit=None):
+        payload = {"Name": name}
+        if amount is not None:
+            payload["Amount"] = amount
+        if unit is not None:
+            payload["Unit"] = unit
+        return self._request("POST", f"{const.LISTS_ENDPOINT}/{list_id}/items", json=payload)
+
+    def set_checked(self, list_id, item_id, checked: bool):
+        payload = {"Checked": 1 if checked else 0}
+        return self._request("PATCH", f"{const.LISTS_ENDPOINT}/{list_id}/items/{item_id}", json=payload)
+
+    def remove_item(self, list_id, item_id):
+        return self._request("DELETE", f"{const.LISTS_ENDPOINT}/{list_id}/items/{item_id}")
+
+    def find_item(self, list_obj, item_name):
+        target = item_name.strip().lower()
+        items = list_obj.get("Items") or list_obj.get("items") or []
+        for raw in items:
+            if raw.get("Name", "").strip().lower() == target:
+                return normalize_item(raw)
+        raise ListonicError(f"Nie znaleziono pozycji: {item_name}")
