@@ -52,3 +52,47 @@ class ListonicClient:
             raise ListonicError("Brak access_token w odpowiedzi logowania")
         self._persist_tokens()
         return True
+
+    def _refresh(self):
+        if not self._refresh_token:
+            raise ListonicError("Brak refresh_token — uruchom `listonic login`")
+        url = const.API_BASE_URL + const.LOGIN_ENDPOINT
+        data = {
+            "grant_type": "refresh_token",
+            "refresh_token": self._refresh_token,
+            "client_id": const.CLIENT_ID,
+            "client_secret": const.CLIENT_SECRET,
+        }
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+            "clientauthorization": f"Bearer {_CLIENT_AUTH}",
+        }
+        resp = requests.post(url, data=data, headers=headers,
+                             timeout=const.REQUEST_TIMEOUT)
+        if resp.status_code != 200:
+            raise ListonicError("Odświeżenie tokenu nieudane — uruchom `listonic login`")
+        body = resp.json()
+        self._token = body.get("access_token")
+        if body.get("refresh_token"):
+            self._refresh_token = body["refresh_token"]
+        self._persist_tokens()
+
+    def _headers(self):
+        h = {"Content-Type": "application/json", "Accept": "application/json"}
+        if self._token:
+            h["Authorization"] = f"Bearer {self._token}"
+        return h
+
+    def _request(self, method: str, path: str, _retried: bool = False, **kwargs):
+        url = const.API_BASE_URL + path
+        resp = requests.request(method, url, headers=self._headers(),
+                                timeout=const.REQUEST_TIMEOUT, **kwargs)
+        if resp.status_code == 401 and not _retried:
+            self._refresh()
+            return self._request(method, path, _retried=True, **kwargs)
+        if resp.status_code not in (200, 201, 204):
+            raise ListonicError(f"Błąd API {method} {path}: HTTP {resp.status_code}")
+        if resp.status_code == 204 or not resp.content:
+            return None
+        return resp.json()
