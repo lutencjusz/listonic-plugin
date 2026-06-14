@@ -13,6 +13,18 @@ class ListonicError(Exception):
     pass
 
 
+def normalize_item(raw: dict) -> dict:
+    checked = raw.get("Checked", raw.get("isChecked", 0))
+    is_checked = bool(checked) if isinstance(checked, int) else bool(checked)
+    return {
+        "id": str(raw.get("Id", raw.get("IdAsNumber", ""))),
+        "name": raw.get("Name", ""),
+        "checked": is_checked,
+        "amount": raw.get("Amount"),
+        "unit": raw.get("Unit"),
+    }
+
+
 class ListonicClient:
     def __init__(self, config=None, persist=True):
         self._config = config if config is not None else load_config()
@@ -96,3 +108,22 @@ class ListonicClient:
         if resp.status_code == 204 or not resp.content:
             return None
         return resp.json()
+
+    def get_lists(self, include_items: bool = True):
+        params = {
+            "includeItems": "true" if include_items else "false",
+            "includeShares": "true",
+            "archive": "false",
+        }
+        return self._request("GET", const.LISTS_ENDPOINT, params=params) or []
+
+    def get_items(self, list_id):
+        path = f"{const.LISTS_ENDPOINT}/{list_id}/items"
+        return self._request("GET", path) or []
+
+    def find_list(self, name: str) -> dict:
+        target = name.strip().lower()
+        for lst in self.get_lists():
+            if lst.get("Name", "").strip().lower() == target:
+                return lst
+        raise ListonicError(f"Nie znaleziono listy: {name}")
