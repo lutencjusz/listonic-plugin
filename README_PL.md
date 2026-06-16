@@ -39,6 +39,15 @@ listonic login        # zapyta o email i hasło interaktywnie
 Tokeny lądują w `~/.listonic/config.json` — **poza repozytorium i vaultem**. Hasła nie
 podawaj w argumentach (zostają w historii powłoki) — tylko interaktywnie.
 
+Do użycia bezinteraktywnego (cron/CI) `login` czyta też `LISTONIC_EMAIL` i
+`LISTONIC_PASSWORD` ze środowiska (gdy nieustawione — wraca do interaktywnych pytań).
+Trzymaj je w pliku z ograniczonymi uprawnieniami (np. `chmod 600`), nigdy w repo:
+
+```bash
+set -a; . ./.listonic.env; set +a   # eksportuje LISTONIC_EMAIL / LISTONIC_PASSWORD
+listonic login
+```
+
 **Konto „przez Google":** CLI używa wyłącznie logowania `email + hasło Listonic` (nie
 OAuth Google). Jeśli zakładałeś konto przez Google, ustaw najpierw hasło Listonic w
 aplikacji/web (ustawienia konta → ustaw/zmień hasło lub „nie pamiętam hasła" na ten sam

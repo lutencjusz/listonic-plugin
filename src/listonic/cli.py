@@ -1,6 +1,7 @@
 import argparse
 import getpass
 import json
+import os
 import sys
 
 from .client import ListonicClient, ListonicError, normalize_item
@@ -17,8 +18,8 @@ def _print(obj, as_json):
 
 
 def cmd_login(args):
-    email = args.email or input("Email Listonic: ")
-    password = getpass.getpass("Hasło: ")
+    email = args.email or os.environ.get("LISTONIC_EMAIL") or input("Email Listonic: ")
+    password = os.environ.get("LISTONIC_PASSWORD") or getpass.getpass("Hasło: ")
     ListonicClient().login(email, password)
     print("Zalogowano. Tokeny zapisane w ~/.listonic/config.json")
 

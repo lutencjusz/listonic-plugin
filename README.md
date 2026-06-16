@@ -41,6 +41,16 @@ listonic login        # prompts for email and password interactively
 Tokens are stored in `~/.listonic/config.json` — **outside the repository and the vault**.
 Don't pass passwords as arguments (they stay in shell history) — interactively only.
 
+For non-interactive use (cron/CI), `login` also reads `LISTONIC_EMAIL` and
+`LISTONIC_PASSWORD` from the environment (falling back to the interactive prompts when
+unset). Keep these in a file with restricted permissions (e.g. `chmod 600`), never in the
+repo:
+
+```bash
+set -a; . ./.listonic.env; set +a   # exports LISTONIC_EMAIL / LISTONIC_PASSWORD
+listonic login
+```
+
 **"Sign in with Google" accounts:** the CLI uses `email + Listonic password` login only
 (not Google OAuth). If you created your account through Google, first set a Listonic
 password in the app/web (account settings → set/change password, or "forgot password" for
